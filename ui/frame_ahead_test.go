@@ -86,6 +86,39 @@ func TestFrameAhead(t *testing.T) {
 	}
 }
 
+func TestFrameAheadViewAnimation(t *testing.T) {
+	for _, ahead := range []bool{false, true} {
+		animating := false
+		tt := coreNewTester(func(c *context) {
+			if animating {
+				c.AnimationFrame()
+			}
+		}, 200, 200)
+		h := &aheadHost{headless: tt.h, ahead: ahead}
+		tt.rt.host = h
+
+		frames := []string{"pr", "pr", "p"}
+		if ahead {
+			frames = []string{"pr", "rpr", "rp", "p"}
+		}
+		h.requested.Store(true)
+		for i, want := range frames {
+			if !h.requested.Swap(false) {
+				t.Fatalf("ahead %v, frame %d: no frame requested", ahead, i+1)
+			}
+			animating = i < 2 // Stop after two animated frames.
+			h.log = nil
+			tt.rt.surfaceFrame()
+			if got := string(h.log); got != want {
+				t.Fatalf("ahead %v, frame %d: %q, want %q", ahead, i+1, got, want)
+			}
+		}
+		if tt.asked() {
+			t.Fatalf("ahead %v: stopped animation is still asking for frames", ahead)
+		}
+	}
+}
+
 // TestFrameAheadOccluded checks that a window nothing of which shows asks
 // for no frame ahead: what moves waits until it shows (next).
 func TestFrameAheadOccluded(t *testing.T) {
